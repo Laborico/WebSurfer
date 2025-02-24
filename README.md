@@ -11,6 +11,8 @@ python3 browser.py http://example.org/
 
 ### Features
 - http/1 support
+- https support
+- custom port support
 
 #### Todo when the blessings are over:
 - Update http support from 1.0 to 3.0
