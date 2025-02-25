@@ -6,14 +6,18 @@ WebSurfer is a simple browser built with Python, and following the blessing of [
 ### How to Use
 
 ```sh
-python3 browser.py http://example.org/
+python3 main.py http://example.org/
 ```
 
 ### Features
 - http/1 support
 - https support
 - custom port support
+- Basic UI with basic scrolling
 
 #### Todo when the blessings are over:
 - Update http support from 1.0 to 3.0
 - Add [QUIC](https://en.wikipedia.org/wiki/QUIC) support
+- Better UI (including mouse controls, resizing, scrollbars, line breaks, etc.)
+- Add unicode support (emojis, right-to-left languages, etc.)
+- Add malformed url case handling
