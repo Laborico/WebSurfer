@@ -1,6 +1,6 @@
 import tkinter
 import tkinter.font
-from html_parser import Text, Tag
+from html_parser import Text, HTMLParser
 
 WIDTH, HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
@@ -36,8 +36,8 @@ class Browser:
     def load(self, url):
         body = url.request()
 
-        text = lex(body)
-        self.display_list = Layout(text).display_list
+        self.nodes = HTMLParser(body).parse()
+        self.display_list = Layout(self.nodes).display_list
         self.draw()
 
     def scrolldown(self, e):
@@ -55,36 +55,42 @@ class Layout:
         self.size = 12
         self.line = []
 
-        for tok in tokens:
-            self.token(tok)
+        self.recurse(tokens)
 
         self.flush()
 
-    # Basic tokenizer for html tags
-    def token(self, tok):
-        if isinstance(tok, Text):
-            for word in tok.text.split():
+    def recurse(self, tree):
+        if isinstance(tree, Text):
+            for word in tree.text.split():
                 self.word(word)
+        else:
+            self.open_tag(tree.tag)
+            for child in tree.children:
+                self.recurse(child)
+            self.close_tag(tree.tag)
 
-        elif tok.tag == 'i':
+    def open_tag(self, tag):
+        if tag == 'i':
             self.style = 'italic'
-        elif tok.tag == '/i':
-            self.style = 'roman'
-        elif tok.tag == 'b':
+        elif tag == 'b':
             self.weight = 'bold'
-        elif tok.tag == '/b':
-            self.weight = 'normal'
-        elif tok.tag == 'small':
+        elif tag == 'small':
             self.size -= 2
-        elif tok.tag == '/small':
-            self.size += 2
-        elif tok.tag == 'big':
+        elif tag == 'big':
             self.size += 4
-        elif tok.tag == '/big':
-            self.size -= 4
-        elif tok.tag == 'br':
+        elif tag == 'br':
             self.flush()
-        elif tok.tag == '/p':
+
+    def close_tag(self, tag):
+        if tag == 'i':
+            self.style = 'roman'
+        elif tag == 'b':
+            self.weight = 'normal'
+        elif tag == 'small':
+            self.size += 2
+        elif tag == 'big':
+            self.size -= 4
+        elif tag == 'p':
             self.flush()
             self.cursor_y += VSTEP
 
@@ -115,31 +121,6 @@ class Layout:
 
         self.cursor_x = HSTEP
         self.line = []
-
-
-# Basic HTML lex table, just searches for text and tags, without a tree, for now
-def lex(body):
-    out = []
-    buffer = ''
-    in_tag = False
-
-    for c in body:
-        if c == '<':
-            in_tag = True
-            if buffer:
-                out.append(Text(buffer))
-            buffer = ''
-        elif c == '>':
-            in_tag = False
-            out.append(Tag(buffer))
-            buffer = ''
-        else:
-            buffer += c
-
-    if not in_tag and buffer:
-        out.append(Text(buffer))
-
-    return out
 
 
 # Memoazation for the win, text caching to improve text rendering speed

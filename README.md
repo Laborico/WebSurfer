@@ -9,11 +9,18 @@ WebSurfer is a simple browser built with Python, and following the blessing of [
 python3 main.py http://example.org/
 ```
 
+If you want to see a basic HTML tree of a page, use:
+
+```sh
+python3 html_parser.py http://example.org/
+```
+
 ### Features
 - http/1 support
 - https support
 - custom port support
 - Basic UI with basic scrolling (only down arrow works)
+- Basic HTML parser
 
 #### Todo when the blessings are over:
 - Update http support from 1.0 to 3.0
@@ -22,3 +29,4 @@ python3 main.py http://example.org/
 - Add unicode support (emojis, right-to-left languages, etc.)
 - Add malformed url case handling
 - Improve text rendering
+- Improve HTML parsing and make attributes work
