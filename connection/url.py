@@ -76,7 +76,7 @@ class URL:
 
         return content
 
-    # Resolves relative paths, specially for css styel sheets
+    # Resolves relative paths, specially for css style esheets
     def resolve(self, url):
         if '://' in url:
             return URL(url)
