@@ -1,22 +1,5 @@
-class Text:
-    def __init__(self, text, parent):
-        self.text = text
-        self.children = []
-        self.parent = parent
-
-    def __repr__(self):
-        return repr(self.text)
-
-
-class Element:
-    def __init__(self, tag, attributes, parent):
-        self.tag = tag
-        self.attributes = attributes
-        self.children = []
-        self.parent = parent
-
-    def __repr__(self):
-        return '<' + self.tag + '>'
+from .text import Text
+from .element import Element
 
 
 class HTMLParser:
@@ -138,18 +121,3 @@ class HTMLParser:
 
             else:
                 break
-
-
-# A little tree printer on terminal
-def print_tree(node, indent=0):
-    print(' ' * indent, node)
-    for child in node.children:
-        print_tree(child, indent + 2)
-
-
-if __name__ == '__main__':
-    import sys
-    from url import URL
-    body = URL(sys.argv[1]).request()
-    nodes = HTMLParser(body).parse()
-    print_tree(nodes)

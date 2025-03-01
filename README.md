@@ -8,13 +8,6 @@ WebSurfer is a simple browser built with Python, and following the blessing of [
 ```sh
 python3 main.py http://example.org/
 ```
-
-If you want to see a basic HTML tree of a page, use:
-
-```sh
-python3 html_parser.py http://example.org/
-```
-
 ### Features
 - http/1 support
 - https support
