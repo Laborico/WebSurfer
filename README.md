@@ -20,7 +20,7 @@ python3 html_parser.py http://example.org/
 - https support
 - custom port support
 - Basic UI with basic scrolling (only down arrow works)
-- Basic HTML parser
+- Basic HTML and CSS parser
 
 #### Todo when the blessings are over:
 - Update http support from 1.0 to 3.0
@@ -29,4 +29,5 @@ python3 html_parser.py http://example.org/
 - Add unicode support (emojis, right-to-left languages, etc.)
 - Add malformed url case handling
 - Improve text rendering
-- Improve HTML parsing and make attributes work
+- Improve HTML and CSS parsing and make attributes work
+- Improve tab management
