@@ -1,6 +1,8 @@
 import tkinter
 import tkinter.font
 from html_parser import Text, HTMLParser, Element
+from css_parser import DEFAULT_STYLE_SHEET, CSSParser
+from css_parser import cascade_priority, style, tree_to_list
 
 WIDTH, HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
@@ -21,7 +23,8 @@ class Browser:
         self.canvas = tkinter.Canvas(
                 self.window,
                 width=WIDTH,
-                height=HEIGHT
+                height=HEIGHT,
+                bg='white'
                 )
         self.canvas.pack()
         self.scroll = 0
@@ -41,9 +44,26 @@ class Browser:
         body = url.request()
 
         self.nodes = HTMLParser(body).parse()
+        rules = DEFAULT_STYLE_SHEET.copy()
+        links = [node.attributes['href']
+                 for node in tree_to_list(self.nodes, [])
+                 if isinstance(node, Element)
+                 and node.tag == 'link'
+                 and node.attributes.get('rel') == 'stylesheet'
+                 and 'href' in node.attributes]
+        for link in links:
+            style_url = url.resolve(link)
+            try:
+                body = style_url.request()
+            except Exception:
+                continue
+            rules.extend(CSSParser(body).parse())
+        style(self.nodes, sorted(rules, key=cascade_priority))
+
         self.display_list = []
         self.document = DocumentLayout(self.nodes)
         self.document.layout()
+
         paint_tree(self.document, self.display_list)
         self.draw()
 
@@ -65,15 +85,15 @@ class BlockLayout:
         self.width = None
         self.height = None
 
-    def recurse(self, tree):
-        if isinstance(tree, Text):
-            for word in tree.text.split():
-                self.word(word)
+    def recurse(self, node):
+        if isinstance(node, Text):
+            for word in node.text.split():
+                self.word(node, word)
         else:
-            self.open_tag(tree.tag)
-            for child in tree.children:
+            if node.tag == 'br':
+                self.flush()
+            for child in node.children:
                 self.recurse(child)
-            self.close_tag(tree.tag)
 
     def open_tag(self, tag):
         if tag == 'i':
@@ -100,28 +120,36 @@ class BlockLayout:
             self.flush()
             self.cursor_y += VSTEP
 
-    def word(self, word):
-        font = get_font(self.size, self.weight, self.style)
-        w = font.measure(word)
+    def word(self, node, word):
+        weight = node.style['font-weight']
+        style = node.style['font-style']
+        if style == 'normal':
+            style = 'roman'
+        size = int(float(node.style['font-size'][:-2]) * .75)
 
-        self.line.append((self.cursor_x, word, font))
-        self.cursor_x += w + font.measure(' ')
+        font = get_font(size, weight, style)
+        w = font.measure(word)
 
         if self.cursor_x + w > self.width:
             self.flush()
+
+        color = node.style['color']
+
+        self.line.append((self.cursor_x, word, font, color))
+        self.cursor_x += w + font.measure(' ')
 
     # Aligns the words on a line, handles big and small tags font size changes
     def flush(self):
         if not self.line:
             return
-        metrics = [font.metrics() for x, word, font in self.line]
+        metrics = [font.metrics() for x, word, font, color in self.line]
         max_ascent = max([metric['ascent'] for metric in metrics])
         baseline = self.cursor_y + 1.25 * max_ascent
 
-        for rel_x, word, font in self.line:
+        for rel_x, word, font, color in self.line:
             x = self.x + rel_x
             y = self.y + baseline - font.metrics('ascent')
-            self.display_list.append((x, y, word, font))
+            self.display_list.append((x, y, word, font, color))
 
         max_descent = max([metric['descent'] for metric in metrics])
         self.cursor_y = baseline + 1.25 * max_descent
@@ -187,14 +215,16 @@ class BlockLayout:
     def paint(self):
         cmds = []
 
-        if isinstance(self.node, Element) and self.node.tag == 'pre':
+        bgcolor = self.node.style.get('background-color', 'transparent')
+
+        if bgcolor != 'transparent':
             x2, y2 = self.x + self.width, self.y + self.height
-            rect = DrawRect(self.x, self.y, x2, y2, 'gray')
+            rect = DrawRect(self.x, self.y, x2, y2, bgcolor)
             cmds.append(rect)
 
         if self.layout_mode() == 'inline':
-            for x, y, word, font in self.display_list:
-                cmds.append(DrawText(x, y, word, font))
+            for x, y, word, font, color in self.display_list:
+                cmds.append(DrawText(x, y, word, font, color))
 
         return cmds
 
@@ -221,19 +251,21 @@ class DocumentLayout:
 
 
 class DrawText:
-    def __init__(self, x1, y1, text, font):
+    def __init__(self, x1, y1, text, font, color):
         self.top = y1
         self.left = x1
         self.text = text
         self.font = font
         self.bottom = y1 + font.metrics('linespace')
+        self.color = color
 
     def execute(self, scroll, canvas):
         canvas.create_text(
                 self.left, self.top - scroll,
                 text=self.text,
                 font=self.font,
-                anchor='nw'
+                anchor='nw',
+                fill=self.color
                 )
 
 
