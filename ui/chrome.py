@@ -144,3 +144,6 @@ class Chrome:
         if self.focus == 'address bar':
             self.browser.active_tab.load(URL(self.address_bar))
             self.focus = None
+
+    def blur(self):
+        self.focus = None

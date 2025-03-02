@@ -33,3 +33,6 @@ class TextLayout:
     def paint(self):
         color = self.node.style['color']
         return [DrawText(self.x, self.y, self.word, self.font, color)]
+
+    def should_paint(self):
+        return True

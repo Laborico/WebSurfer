@@ -9,3 +9,4 @@ BLOCK_ELEMENTS = [
         'dt', 'dd', 'figure', 'figcaption', 'main', 'div', 'table', 'form',
         'fieldset', 'legend', 'details', 'summary'
         ]
+INPUT_WIDTH_PX = 200

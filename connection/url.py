@@ -32,7 +32,7 @@ class URL:
             port_part = ''
         return self.scheme + '://' + self.host + port_part + self.path
 
-    def request(self):
+    def request(self, payload=None):
         s = socket.socket(
                 family=socket.AF_INET,
                 type=socket.SOCK_STREAM,
@@ -45,11 +45,17 @@ class URL:
             ctx = ssl.create_default_context()
             s = ctx.wrap_socket(s, server_hostname=self.host)
 
+        method = 'POST' if payload else 'GET'
         # use \r\n for new lines, otherwise server will keep waiting for it
         # quirks from old protocols lol.
-        request = 'GET {} HTTP/1.0\r\n'.format(self.path)
+        request = '{} {} HTTP/1.0\r\n'.format(method, self.path)
+        if payload:
+            lenght = len(payload.encode('utf8'))
+            request += 'Content-Length: {}\r\n'.format(lenght)
         request += 'Host: {}\r\n'.format(self.host)
         request += '\r\n'
+        if payload:
+            request += payload
 
         s.send(request.encode('utf8'))
 
