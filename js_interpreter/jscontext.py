@@ -22,6 +22,8 @@ class JSContext:
                                     self.getAttribute)
         self.interp.export_function('innerHTML_set',
                                     self.innerHTML_set)
+        self.interp.export_function('XMLHttpRequest_send',
+                                    self.XMLHttpRequest_send)
         self.interp.evaljs(RUNTIME_JS)
 
     def run(self, script, code):
@@ -70,3 +72,16 @@ class JSContext:
             child.parent = elt
 
         self.tab.render()
+
+    def XMLHttpRequest_send(self, method, url, body):
+        full_url = self.tab.url.resolve(url)
+
+        if not self.tab.allowed_request(full_url):
+            raise Exception('Cross-origin XHR blocked by CSP')
+
+        headers, out = full_url.request(self.tab.url, body)
+
+        if full_url.origin() != self.tab.url.origin():
+            raise Exception('Cross-origin XHR request not allowed')
+
+        return out

@@ -4,6 +4,7 @@ from html_parser.text import Text
 from css_parser.parser import DEFAULT_STYLE_SHEET
 from css_parser.functions import tree_to_list, cascade_priority, style
 from css_parser.parser import CSSParser
+from connection.url import URL
 from .documentlayout import DocumentLayout
 from .functions import paint_tree
 from .variables import VSTEP, SCROLL_STEP
@@ -28,10 +29,18 @@ class Tab:
             cmd.execute(self.scroll - offset, canvas)
 
     def load(self, url, payload=None):
+        headers, body = url.request(self.url, payload)
         self.history.append(url)
         self.url = url
-        body = url.request(payload)
         self.scroll = 0
+
+        self.allowed_origins = None
+        if 'content-security-policy' in headers:
+            csp = headers['content-security-policy'].split()
+            if len(csp) > 0 and csp[0] == 'default-src':
+                self.allowed_origins = []
+                for origin in csp[1:]:
+                    self.allowed_origins.append(URL(origin).origin())
 
         self.nodes = HTMLParser(body).parse()
         self.rules = DEFAULT_STYLE_SHEET.copy()
@@ -46,8 +55,11 @@ class Tab:
 
         for script in scripts:
             script_url = url.resolve(script)
+            if not self.allowed_request(script_url):
+                print('Blocked script', script, 'due to CSP')
+                continue
             try:
-                body = script_url.request()
+                header, body = script_url.request(url)
             except Exception:
                 continue
             self.js.run(script, body)
@@ -61,8 +73,11 @@ class Tab:
 
         for link in links:
             style_url = url.resolve(link)
+            if not self.allowed_request(style_url):
+                print('Blocked stylesheet', link, 'due to CSP')
+                continue
             try:
-                body = style_url.request()
+                header, body = style_url.request(url)
             except Exception:
                 continue
             self.rules.extend(CSSParser(body).parse())
@@ -160,3 +175,7 @@ class Tab:
 
         url = self.url.resolve(elt.attributes['action'])
         self.load(url, body)
+
+    def allowed_request(self, url):
+        return self.allowed_origins is None or \
+                url.origin() in self.allowed_origins

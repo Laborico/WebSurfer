@@ -1,5 +1,6 @@
 import socket
 import ssl
+from .variables import COOKIE_JAR
 
 
 class URL:
@@ -32,7 +33,7 @@ class URL:
             port_part = ''
         return self.scheme + '://' + self.host + port_part + self.path
 
-    def request(self, payload=None):
+    def request(self, referrer, payload=None):
         s = socket.socket(
                 family=socket.AF_INET,
                 type=socket.SOCK_STREAM,
@@ -53,6 +54,16 @@ class URL:
             lenght = len(payload.encode('utf8'))
             request += 'Content-Length: {}\r\n'.format(lenght)
         request += 'Host: {}\r\n'.format(self.host)
+
+        if self.host in COOKIE_JAR:
+            cookie, params = COOKIE_JAR[self.host]
+            allow_cookie = True
+            if referrer and params.get('samesite', 'none') == 'lax':
+                if method != 'GET':
+                    allow_cookie = self.host == referrer.host
+            if allow_cookie:
+                request += 'Cookie: {}\r\n'.format(cookie)
+
         request += '\r\n'
         if payload:
             request += payload
@@ -77,10 +88,23 @@ class URL:
         assert 'transfer-encoding' not in response_headers
         assert 'content-encoding' not in response_headers
 
+        if 'set-cookie' in response_headers:
+            cookie = response_headers['set-cookie']
+            params = {}
+            if ';' in cookie:
+                cookie, rest = cookie.split(';', 1)
+                for param in rest.split(';'):
+                    if '=' in param:
+                        param, value = param.split('=', 1)
+                    else:
+                        value = 'true'
+                    params[param.strip().casefold()] = value.casefold()
+            COOKIE_JAR[self.host] = (cookie, params)
+
         content = response.read()
         s.close()
 
-        return content
+        return response_headers, content
 
     # Resolves relative paths, specially for css style esheets
     def resolve(self, url):
@@ -99,3 +123,6 @@ class URL:
         else:
             return URL(self.scheme + '://' + self.host + ':' +
                        str(self.port) + url)
+
+    def origin(self):
+        return self.scheme + '://' + self.host + ':' + str(self.port)

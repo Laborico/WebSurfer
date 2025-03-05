@@ -15,6 +15,7 @@ python3 main.py http://example.org/
 - Basic UI with basic scrolling (only down arrow works)
 - Basic HTML and CSS parser
 - Barebones JS interpreter
+- Barebones cookies and security features
 
 #### Todo when the blessings are over:
 - Update http support from 1.0 to 3.0
@@ -26,3 +27,5 @@ python3 main.py http://example.org/
 - Improve HTML and CSS parsing and make attributes work
 - Improve tab management
 - Expand JS interpreter
+- Expand cookie handling
+- Expand security features

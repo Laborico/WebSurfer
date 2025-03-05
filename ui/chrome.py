@@ -139,6 +139,8 @@ class Chrome:
     def keypress(self, char):
         if self.focus == 'address bar':
             self.address_bar += char
+            return True
+        return False
 
     def enter(self):
         if self.focus == 'address bar':
