@@ -10,3 +10,15 @@ BLOCK_ELEMENTS = [
         'fieldset', 'legend', 'details', 'summary'
         ]
 INPUT_WIDTH_PX = 200
+NAMED_COLORS = {
+        'black': '#000000',
+        'white': '#ffffff',
+        'red':   '#ff0000',
+        'blue': '#0000ff',
+        'green': '#008000',
+        'lightblue': '#add8e6',
+        'lightgreen': '#90ee90',
+        'orange': '#ffa500',
+        'orangered': '#ff4500',
+        'gray': '#808080'
+        }

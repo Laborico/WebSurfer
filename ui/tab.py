@@ -19,14 +19,10 @@ class Tab:
         self.history = []
         self.focus = None
 
-    def draw(self, canvas, offset):
+    def raster(self, canvas):
 
         for cmd in self.display_list:
-            if cmd.rect.top > self.scroll + self.tab_height:
-                continue
-            if cmd.rect.bottom < self.scroll:
-                continue
-            cmd.execute(self.scroll - offset, canvas)
+            cmd.execute(canvas)
 
     def load(self, url, payload=None):
         headers, body = url.request(self.url, payload)

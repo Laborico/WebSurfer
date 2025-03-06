@@ -1,12 +1,12 @@
 from html_parser.text import Text
 from html_parser.element import Element
 from .variables import BLOCK_ELEMENTS, INPUT_WIDTH_PX
-from .functions import get_font
+from .functions import get_font, paint_visual_effects
 from .textlayout import TextLayout
-from .drawrect import DrawRect
+from .drawrect import DrawRRect
 from .linelayout import LineLayout
-from .rectangle import Rect
 from .inputlayout import InputLayout
+import skia
 
 
 class BlockLayout:
@@ -37,12 +37,10 @@ class BlockLayout:
     def word(self, node, word):
         weight = node.style['font-weight']
         style = node.style['font-style']
-        if style == 'normal':
-            style = 'roman'
-        size = int(float(node.style['font-size'][:-2]) * .75)
+        size = float(node.style['font-size'][:-2]) * .75
 
         font = get_font(size, weight, style)
-        w = font.measure(word)
+        w = font.measureText(word)
 
         if self.cursor_x + w > self.width:
             self.new_line()
@@ -51,7 +49,7 @@ class BlockLayout:
         previous_word = line.children[-1] if line.children else None
         text = TextLayout(node, word, line, previous_word)
         line.children.append(text)
-        self.cursor_x += w + font.measure(' ')
+        self.cursor_x += w + font.measureText(' ')
 
     def layout_mode(self):
         if isinstance(self.node, Text):
@@ -96,8 +94,11 @@ class BlockLayout:
         bgcolor = self.node.style.get('background-color', 'transparent')
 
         if bgcolor != 'transparent':
-            rect = DrawRect(self.self_rect(), bgcolor)
-            cmds.append(rect)
+            radius = float(
+                    self.node.style.get(
+                        'border-radius', '0px')[:-2])
+            cmds.append(DrawRRect(
+                self.self_rect(), radius, bgcolor))
 
         return cmds
 
@@ -108,8 +109,8 @@ class BlockLayout:
         self.children.append(new_line)
 
     def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width,
-                    self.y + self.height)
+        return skia.Rect.MakeLTRB(self.x, self.y, self.x + self.width,
+                                  self.y + self.height)
 
     def input(self, node):
         w = INPUT_WIDTH_PX
@@ -123,14 +124,17 @@ class BlockLayout:
 
         weight = node.style['font-weight']
         style = node.style['font-style']
-        if style == 'normal':
-            style = 'roman'
 
-        size = int(float(node.style['font-size'][:-2]) * .75)
+        size = float(node.style['font-size'][:-2]) * .75
         font = get_font(size, weight, style)
 
-        self.cursor_x += w + font.measure(' ')
+        self.cursor_x += w + font.measureText(' ')
 
     def should_paint(self):
         return isinstance(self.node, Text) or \
                 (self.node.tag != 'input' and self.node.tag != 'button')
+
+    def paint_effects(self, cmds):
+        cmds = paint_visual_effects(
+                self.node, cmds, self.self_rect())
+        return cmds

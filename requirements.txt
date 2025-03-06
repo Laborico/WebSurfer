@@ -1,1 +1,5 @@
 dukpy==0.5.0
+pybind11==2.13.6
+PySDL2==0.9.17
+pysdl2-dll==2.30.10
+skia-python==87.6
