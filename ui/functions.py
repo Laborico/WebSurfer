@@ -52,6 +52,7 @@ def mainloop(browser):
                 browser.handle_quit()
                 sdl2.SDL_Quit()
                 sys.exit()
+                break
             elif event.type == sdl2.SDL_MOUSEBUTTONUP:
                 browser.handle_click(event.button)
             elif event.type == sdl2.SDL_KEYDOWN:
@@ -61,6 +62,9 @@ def mainloop(browser):
                     browser.handle_down()
             elif event.type == sdl2.SDL_TEXTINPUT:
                 browser.handle_key(event.text.text.decode('utf8'))
+
+        browser.raster_and_draw()
+        browser.schedule_animatoin_frame()
 
 
 def linespace(font):

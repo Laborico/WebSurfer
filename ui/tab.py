@@ -5,19 +5,32 @@ from css_parser.parser import DEFAULT_STYLE_SHEET
 from css_parser.functions import tree_to_list, cascade_priority, style
 from css_parser.parser import CSSParser
 from connection.url import URL
+from js_interpreter.jscontext import JSContext
+from processing.taskrunner import TaskRunner
+from processing.task import Task
+from processing.commitdata import CommitData
 from .documentlayout import DocumentLayout
 from .functions import paint_tree
 from .variables import VSTEP, SCROLL_STEP
-from js_interpreter.jscontext import JSContext
 import urllib.parse
+import math
 
 
 class Tab:
-    def __init__(self, tab_height):
+    def __init__(self, browser, tab_height):
         self.url = None
         self.tab_height = tab_height
         self.history = []
         self.focus = None
+        self.task_runner = TaskRunner(self)
+        self.needs_render = False
+        self.browser = browser
+        self.scroll_changed_in_tab = False
+        self.scroll = 0
+        self.needs_raf_callbacks = False
+        self.js = None
+        self.loaded = False
+        self.task_runner.start_thread()
 
     def raster(self, canvas):
 
@@ -25,10 +38,14 @@ class Tab:
             cmd.execute(canvas)
 
     def load(self, url, payload=None):
-        headers, body = url.request(self.url, payload)
-        self.history.append(url)
-        self.url = url
+        self.loaded = False
         self.scroll = 0
+        self.scroll_changed_in_tab = True
+
+        self.task_runner.clear_pending_tasks()
+        headers, body = url.request(self.url, payload)
+        self.url = url
+        self.history.append(url)
 
         self.allowed_origins = None
         if 'content-security-policy' in headers:
@@ -41,13 +58,15 @@ class Tab:
         self.nodes = HTMLParser(body).parse()
         self.rules = DEFAULT_STYLE_SHEET.copy()
 
+        if self.js:
+            self.js.discarded = True
+
+        self.js = JSContext(self)
         scripts = [node.attributes['src'] for node
                    in tree_to_list(self.nodes, [])
                    if isinstance(node, Element)
                    and node.tag == 'script'
                    and 'src' in node.attributes]
-
-        self.js = JSContext(self)
 
         for script in scripts:
             script_url = url.resolve(script)
@@ -58,7 +77,8 @@ class Tab:
                 header, body = script_url.request(url)
             except Exception:
                 continue
-            self.js.run(script, body)
+            task = Task(self.js.run, script_url, body)
+            self.task_runner.schedule_task(task)
 
         links = [node.attributes['href']
                  for node in tree_to_list(self.nodes, [])
@@ -77,21 +97,16 @@ class Tab:
             except Exception:
                 continue
             self.rules.extend(CSSParser(body).parse())
-        style(self.nodes, sorted(self.rules, key=cascade_priority))
 
-        self.display_list = []
-        self.document = DocumentLayout(self.nodes)
-        self.document.layout()
-
-        paint_tree(self.document, self.display_list)
-
-        self.render()
+        self.set_needs_render()
+        self.loaded = True
 
     def scrolldown(self):
         max_y = max(self.document.height + 2*VSTEP - self.tab_height, 0)
         self.scroll = min(self.scroll + SCROLL_STEP, max_y)
 
     def click(self, x, y):
+        self.render()
         if self.focus:
             self.focus.is_focused = False
         self.focus = None
@@ -104,32 +119,29 @@ class Tab:
         if not objs:
             return
         elt = objs[-1].node
+        if elt and self.js.dispatch_event('click', elt):
+            return
+
         while elt:
             if isinstance(elt, Text):
                 pass
             elif elt.tag == 'a' and 'href' in elt.attributes:
-                if self.js.dispatch_event('click', elt):
-                    return
                 url = self.url.resolve(elt.attributes['href'])
-                return self.load(url)
+                self.load(url)
+                return
             elif elt.tag == 'input':
-                if self.js.dispatch_event('click', elt):
-                    return
                 elt.attributes['value'] = ''
                 self.focus = elt
                 elt.is_focused = True
-                return self.render()
+                self.set_needs_render()
+                return
             elif elt.tag == 'button':
-                if self.js.dispatch_event('click', elt):
-                    return
-                while elt:
+                while elt.parent:
                     if elt.tag == 'form' and 'action' in elt.attributes:
                         return self.submit_form(elt)
                     elt = elt.parent
 
             elt = elt.parent
-
-        self.render()
 
     def go_back(self):
         if len(self.history) > 1:
@@ -138,18 +150,30 @@ class Tab:
             self.load(back)
 
     def render(self):
+        if not self.needs_render:
+            return
+        self.browser.measure.time('render')
+
         style(self.nodes, sorted(self.rules, key=cascade_priority))
         self.document = DocumentLayout(self.nodes)
         self.document.layout()
         self.display_list = []
         paint_tree(self.document, self.display_list)
+        self.needs_render = False
+
+        clamped_scroll = self.clamp_scroll(self.scroll)
+        if clamped_scroll != self.scroll:
+            self.scroll_changed_in_tab = True
+        self.scroll = clamped_scroll
+
+        self.browser.measure.stop('render')
 
     def keypress(self, char):
         if self.focus:
             if self.js.dispatch_event('keydown', self.focus):
                 return
             self.focus.attributes['value'] += char
-            self.render()
+            self.set_needs_render()
 
     def submit_form(self, elt):
         if self.js.dispatch_event('submit', elt):
@@ -175,3 +199,34 @@ class Tab:
     def allowed_request(self, url):
         return self.allowed_origins is None or \
                 url.origin() in self.allowed_origins
+
+    def set_needs_render(self):
+        self.needs_render = True
+        self.browser.set_needs_animation_frame(self)
+
+    def run_animation_frame(self, scroll):
+        if not self.scroll_changed_in_tab:
+            self.scroll = scroll
+
+        self.browser.measure.time('script-runRAFHandlers')
+        self.js.interp.evaljs('__runRAFHandlers()')
+        self.browser.measure.stop('script-runRAFHandlers')
+
+        self.render()
+
+        scroll = None
+        if self.scroll_changed_in_tab:
+            scroll = self.scroll
+
+        document_height = math.ceil(self.document.height + 2*VSTEP)
+        commit_data = CommitData(
+                self.url, self.scroll, document_height, self.display_list
+                )
+        self.display_list = None
+        self.browser.commit(self, commit_data)
+        self.scroll_changed_in_tab = False
+
+    def clamp_scroll(self, scroll):
+        height = math.ceil(self.document.height + 2*VSTEP)
+        maxscroll = height - self.tab_height
+        return max(0, min(scroll, maxscroll))

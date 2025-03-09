@@ -4,6 +4,7 @@ from .drawline import DrawLine
 from .drawoutline import DrawOutline
 from .drawtext import DrawText
 from connection.url import URL
+from processing.task import Task
 import skia
 
 
@@ -109,7 +110,8 @@ class Chrome:
                 self.address_rect.bottom(),
                 'red', 1))
         else:
-            url = str(self.browser.active_tab.url)
+            url = str(self.browser.active_tab.url) if \
+                    self.browser.active_tab_url else ''
             cmds.append(DrawText(
                 self.address_rect.left() + self.padding,
                 self.address_rect.top(),
@@ -118,23 +120,22 @@ class Chrome:
         return cmds
 
     def click(self, x, y):
-        self.focus = None
         if self.newtab_rect.contains(x, y):
-            self.browser.new_tab(URL('https://www.wikipedia.org'))
+            self.browser.new_tab_internal(URL('https://www.wikipedia.org'))
         elif self.back_rect.contains(x, y):
-            self.browser.active_tab.go_back()
-            self.browser.raster_chrome()
-            self.browser.raster_tab()
-            self.browser.draw()
+            task = Task(self.browser.active_tab.go_back)
+            self.browser.active_tab.task_runner.schedule_task(task)
         elif self.address_rect.contains(x, y):
             self.focus = 'address bar'
             self.address_bar = ''
         else:
             for i, tab in enumerate(self.browser.tabs):
                 if self.tab_rect(i).contains(x, y):
-                    self.browser.active_tab = tab
+                    self.browser.set_active_tab(tab)
+                    active_tab = self.browser.active_tab
+                    task = Task(active_tab.set_needs_render)
+                    active_tab.task_runner.schedule_task(task)
                     break
-            self.browser.raster_tab()
 
     def keypress(self, char):
         if self.focus == 'address bar':
@@ -144,9 +145,10 @@ class Chrome:
 
     def enter(self):
         if self.focus == 'address bar':
-            self.browser.active_tab.load(URL(self.address_bar))
+            self.browser.schedule_load(URL(self.address_bar))
             self.focus = None
-            self.browser.focus = None
+            return True
+        return False
 
     def blur(self):
         self.focus = None

@@ -22,3 +22,4 @@ NAMED_COLORS = {
         'orangered': '#ff4500',
         'gray': '#808080'
         }
+REFRESH_RATE_SEC = 0.033
