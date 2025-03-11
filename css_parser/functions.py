@@ -1,9 +1,12 @@
 from .parser import INHERITED_PROPERTIES
 from .parser import CSSParser
 from html_parser.element import Element
+from ui.variables import REFRESH_RATE_SEC
+from ui.numericanimation import NumericAnimation
 
 
-def style(node, rules):
+def style(node, rules, tab):
+    old_style = node.style
     node.style = {}
 
     for property, default_value in INHERITED_PROPERTIES.items():
@@ -33,8 +36,18 @@ def style(node, rules):
         parent_px = float(parent_font_size[:-2])
         node.style['font-size'] = str(node_pct * parent_px) + 'px'
 
+    if old_style:
+        transitions = diff_styles(old_style, node.style)
+        for property, (old_value, new_value, num_frames) \
+                in transitions.items():
+            if property == 'opacity':
+                tab.set_needs_render()
+                animation = NumericAnimation(old_value, new_value, num_frames)
+                node.animations[property] = animation
+                node.style[property] = animation.animate()
+
     for child in node.children:
-        style(child, rules)
+        style(child, rules, tab)
 
 
 def tree_to_list(tree, list):
@@ -47,3 +60,30 @@ def tree_to_list(tree, list):
 def cascade_priority(rule):
     selector, body = rule
     return selector.priority
+
+
+def parse_transition(value):
+    properties = {}
+    if not value:
+        return properties
+    for item in value.split(','):
+        property, duration = item.split(' ', 1)
+        frames = int(float(duration[:-1]) / REFRESH_RATE_SEC)
+        properties[property] = frames
+    return properties
+
+
+def diff_styles(old_style, new_style):
+    transitions = {}
+    for property, num_frames in \
+            parse_transition(new_style.get('transition')).items():
+        if property not in old_style:
+            continue
+        if property not in new_style:
+            continue
+        old_value = old_style[property]
+        new_value = new_style[property]
+        if old_value == new_value:
+            continue
+        transitions[property] = (old_value, new_value, num_frames)
+    return transitions

@@ -3,6 +3,9 @@ class Text:
         self.text = text
         self.children = []
         self.parent = parent
+        self.style = {}
+        self.animations = {}
+        self.is_focused = False
 
     def __repr__(self):
         return repr(self.text)

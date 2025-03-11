@@ -1,10 +1,11 @@
 from .functions2 import parse_color
+from .paintcommand import PaintCommand
 import skia
 
 
-class DrawOutline:
+class DrawOutline(PaintCommand):
     def __init__(self, rect, color, thickness):
-        self.rect = rect
+        super().__init__(rect)
         self.color = color
         self.thickness = thickness
 
