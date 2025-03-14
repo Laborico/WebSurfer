@@ -1,6 +1,13 @@
+certifi==2025.1.31
+charset-normalizer==3.4.1
 dukpy==0.5.0
+gTTS==2.5.4
+idna==3.10
+playsound3==2.6.0
 pybind11==2.13.6
 PyOpenGL==3.1.9
 PySDL2==0.9.17
 pysdl2-dll==2.30.10
+requests==2.32.3
 skia-python==87.6
+urllib3==2.3.0

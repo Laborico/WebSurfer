@@ -1,7 +1,7 @@
 from html_parser.text import Text
 from html_parser.element import Element
 from .variables import BLOCK_ELEMENTS, INPUT_WIDTH_PX
-from .functions import get_font, paint_visual_effects
+from .functions import get_font, paint_visual_effects, dpx
 from .textlayout import TextLayout
 from .drawrect import DrawRRect
 from .linelayout import LineLayout
@@ -20,6 +20,7 @@ class BlockLayout:
         self.y = None
         self.width = None
         self.height = None
+        self.layout_object = self
 
     def recurse(self, node):
         if isinstance(node, Text):
@@ -37,9 +38,10 @@ class BlockLayout:
     def word(self, node, word):
         weight = node.style['font-weight']
         style = node.style['font-style']
-        size = float(node.style['font-size'][:-2]) * .75
+        px_size = float(node.style['font-size'][:-2])
+        size = dpx(px_size * 0.75, self.zoom)
 
-        font = get_font(size, weight, style)
+        font = get_font(size, weight, size)
         w = font.measureText(word)
 
         if self.cursor_x + w > self.width:
@@ -63,6 +65,7 @@ class BlockLayout:
             return 'block'
 
     def layout(self):
+        self.zoom = self.parent.zoom
         self.x = self.parent.x
         self.width = self.parent.width
 
@@ -94,9 +97,9 @@ class BlockLayout:
         bgcolor = self.node.style.get('background-color', 'transparent')
 
         if bgcolor != 'transparent':
-            radius = float(
+            radius = dpx(float(
                     self.node.style.get(
-                        'border-radius', '0px')[:-2])
+                        'border-radius', '0px')[:-2]), self.zoom)
             cmds.append(DrawRRect(
                 self.self_rect(), radius, bgcolor))
 
@@ -113,7 +116,7 @@ class BlockLayout:
                                   self.y + self.height)
 
     def input(self, node):
-        w = INPUT_WIDTH_PX
+        w = dpx(INPUT_WIDTH_PX, self.zoom)
         if self.cursor_x + w > self.width:
             self.new_line()
 
@@ -125,8 +128,9 @@ class BlockLayout:
         weight = node.style['font-weight']
         style = node.style['font-style']
 
-        size = float(node.style['font-size'][:-2]) * .75
-        font = get_font(size, weight, style)
+        px_size = float(node.style['font-size'][:-2])
+        size = dpx(px_size * 0.75, self.zoom)
+        font = get_font(size, weight, size)
 
         self.cursor_x += w + font.measureText(' ')
 

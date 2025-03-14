@@ -15,7 +15,10 @@ def style(node, rules, tab):
         else:
             node.style[property] = default_value
 
-    for selector, body in rules:
+    for media, selector, body in rules:
+        if media:
+            if (media == 'dark') != tab.dark_mode:
+                continue
         if not selector.matches(node):
             continue
         for property, value in body.items():
@@ -58,7 +61,7 @@ def tree_to_list(tree, list):
 
 
 def cascade_priority(rule):
-    selector, body = rule
+    media, selector, body = rule
     return selector.priority
 
 
@@ -87,3 +90,14 @@ def diff_styles(old_style, new_style):
             continue
         transitions[property] = (old_value, new_value, num_frames)
     return transitions
+
+
+def parse_outline(outline_str):
+    if not outline_str:
+        return None
+    values = outline_str.split(' ')
+    if len(values) != 3:
+        return None
+    if values[1] != 'solid':
+        return None
+    return int(values[0][:-2]), values[2]

@@ -13,6 +13,7 @@ from .functions import tree_to_list, add_parent_pointers, local_to_absolute
 from .compositedlayer import CompositedLayer
 from .blend import Blend
 from .drawcompositedlayer import DrawCompositedLayer
+from .drawoutline import DrawOutline
 
 
 class Browser:
@@ -79,6 +80,7 @@ class Browser:
 
         self.tabs = []
         self.active_tab = None
+        self.address_bar = ''
         self.focus = None
         self.animation_timer = None
         self.needs_raster_and_draw = False
@@ -91,6 +93,9 @@ class Browser:
         self.needs_draw = False
         self.composited_updates = {}
         self.draw_list = []
+        self.dark_mode = False
+        self.tab_focus = None
+        self.last_tab_focus = None
 
     def handle_down(self):
         self.lock.acquire(blocking=True)
@@ -122,7 +127,11 @@ class Browser:
 
     def draw(self):
         canvas = self.root_surface.getCanvas()
-        canvas.clear(skia.ColorWHITE)
+
+        if self.dark_mode:
+            canvas.clear(skia.ColorBLACK)
+        else:
+            canvas.clear(skia.ColorWHITE)
 
         canvas.save()
         canvas.translate(0, self.chrome.bottom - self.active_tab_scroll)
@@ -153,6 +162,11 @@ class Browser:
 
     def set_active_tab(self, tab):
         self.active_tab = tab
+        task = Task(self.active_tab.set_dark_mode, self.dark_mode)
+        self.active_tab.task_runner.schedule_task(task)
+        task = Task(self.active_tab.set_needs_paint)
+        self.active_tab.task_runner.schedule_task(task)
+
         self.clear_data()
         self.needs_animation_frame = True
         self.animation_timer = None
@@ -173,6 +187,9 @@ class Browser:
         self.lock.acquire(blocking=True)
         if self.chrome.enter():
             self.set_needs_raster()
+        elif self.focus == 'content':
+            task = Task(self.active_tab.enter)
+            self.active_tab.task_runner.schedule_task(task)
         self.lock.release()
 
     def handle_quit(self):
@@ -182,21 +199,33 @@ class Browser:
         sdl2.SDL_GL_DeleteContext(self.gl_context)
         sdl2.SDL_DestroyWindow(self.sdl_window)
 
+    def handle_tab(self):
+        self.focus = 'content'
+        self.chrome.blur()
+        task = Task(self.active_tab.advance_tab)
+        self.active_tab.task_runner.schedule_task(task)
+
     def raster_tab(self):
         for composited_layer in self.composited_layers:
             composited_layer.raster()
 
     def raster_chrome(self):
+        if self.dark_mode:
+            background_color = skia.ColorBLACK
+        else:
+            background_color = skia.ColorWHITE
         canvas = self.chrome_surface.getCanvas()
-        canvas.clear(skia.ColorWHITE)
+        canvas.clear(background_color)
 
         for cmd in self.chrome.paint():
             cmd.execute(canvas)
 
     def composite_raster_and_draw(self):
         self.lock.acquire(blocking=True)
-        if not self.needs_composite and not self.needs_raster and \
-                not self.needs_draw:
+        if not self.needs_composite and\
+                len(self.composited_updates) == 0\
+                and not self.needs_raster \
+                and not self.needs_draw:
             self.lock.release()
             return
 
@@ -271,6 +300,7 @@ class Browser:
             self.animation_timer = None
 
             self.composited_updates = data.composited_updates
+
             if self.composited_updates is None:
                 self.composited_updates = {}
                 self.set_needs_composite()
@@ -367,3 +397,47 @@ class Browser:
         self.display_list = []
         self.composited_updates = {}
         self.composited_layers = []
+
+    def increment_zoom(self, increment):
+        self.lock.acquire(blocking=True)
+        task = Task(self.active_tab.zoom_by, increment)
+        self.active_tab.task_runner.schedule_task(task)
+        self.lock.release()
+
+    def reset_zoom(self):
+        self.lock.acquire(blocking=True)
+        task = Task(self.active_tab.reset_zoom)
+        self.active_tab.task_runner.schedule_task(task)
+        self.lock.release()
+
+    def toggle_dark_mode(self):
+        self.lock.acquire(blocking=True)
+        self.dark_mode = not self.dark_mode
+        task = Task(self.active_tab.set_dark_mode, self.dark_mode)
+        self.active_tab.task_runner.schedule_task(task)
+        self.lock.release()
+
+    def focus_addressbar(self):
+        self.lock.acquire(blocking=True)
+        self.focus = None
+        self.chrome.focus_addressbar()
+        self.set_needs_raster()
+        self.lock.release()
+
+    def focus_content(self):
+        self.lock.acquire(blocking=True)
+        self.chrome.blur()
+        self.focus = 'content'
+        self.lock.release()
+
+    def cycle_tabs(self):
+        self.lock.acquire(blocking=True)
+        active_idx = self.tabs.index(self.active_tab)
+        new_active_idx = (active_idx + 1) % len(self.tabs)
+        self.set_active_tab(self.tabs[new_active_idx])
+        self.lock.release()
+
+    def go_back(self):
+        task = Task(self.active_tab.go_back)
+        self.active_tab.task_runner.schedule_task(task)
+        self.clear_data()

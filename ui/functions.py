@@ -7,6 +7,9 @@ from .blend import Blend
 from .drawrect import DrawRRect
 from .transform import Transform
 from .functions2 import parse_transform
+from .drawoutline import DrawOutline
+from css_parser.functions import parse_outline
+from connection.url import URL
 
 
 # Memoazation for the win, text caching to improve text rendering speed
@@ -48,6 +51,7 @@ def paint_tree(layout_object, display_list):
 
 def mainloop(browser):
     event = sdl2.SDL_Event()
+    ctrl_down = False
     while True:
         if sdl2.SDL_PollEvent(ctypes.byref(event)) != 0:
             if event.type == sdl2.SDL_QUIT:
@@ -58,11 +62,45 @@ def mainloop(browser):
             elif event.type == sdl2.SDL_MOUSEBUTTONUP:
                 browser.handle_click(event.button)
             elif event.type == sdl2.SDL_KEYDOWN:
+                if ctrl_down:
+                    if event.key.keysym.sym == sdl2.SDLK_EQUALS:
+                        browser.increment_zoom(True)
+                    elif event.key.keysym.sym == sdl2.SDLK_MINUS:
+                        browser.increment_zoom(False)
+                    elif event.key.keysym.sym == sdl2.SDLK_0:
+                        browser.reset_zoom()
+                    elif event.key.keysym.sym == sdl2.SDLK_d:
+                        browser.toggle_dark_mode()
+                    elif event.key.keysym.sym == sdl2.SDLK_LEFT:
+                        browser.go_back()
+                    elif event.key.keysym.sym == sdl2.SDLK_l:
+                        browser.focus_addressbar()
+                    elif event.key.keysym.sym == sdl2.SDLK_t:
+                        browser.new_tab_internal(
+                                URL('https://www.wikipedia.org'))
+                    elif event.key.keysym.sym == sdl2.SDLK_TAB:
+                        browser.cycle_tabs()
+                    elif event.key.keysym.sym == sdl2.SDLK_q:
+                        browser.handle_quit()
+                        sdl2.SDL_Quit()
+                        sys.exit()
+                        break
+
                 if event.key.keysym.sym == sdl2.SDLK_RETURN:
                     browser.handle_enter()
+                elif event.key.keysym.sym == sdl2.SDLK_TAB:
+                    browser.handle_tab()
+                elif event.key.keysym.sym == sdl2.SDLK_RCTRL or \
+                        event.key.keysym.sym == sdl2.SDLK_LCTRL:
+                    ctrl_down = True
                 elif event.key.keysym.sym == sdl2.SDLK_DOWN:
                     browser.handle_down()
-            elif event.type == sdl2.SDL_TEXTINPUT:
+
+            elif event.type == sdl2.SDL_KEYUP:
+                if event.key.keysym.sym == sdl2.SDLK_RCTRL or \
+                        event.key.keysym.sym == sdl2.SDLK_LCTRL:
+                    ctrl_down = False
+            elif event.type == sdl2.SDL_TEXTINPUT and not ctrl_down:
                 browser.handle_key(event.text.text.decode('utf8'))
 
         browser.composite_raster_and_draw()
@@ -127,3 +165,29 @@ def local_to_absolute(display_item, rect):
         rect = display_item.parent.map(rect)
         display_item = display_item.parent
     return rect
+
+
+def dpx(css_px, zoom):
+    return css_px * zoom
+
+
+def is_focusable(node):
+    if get_tabindex(node) < 0:
+        return False
+    elif 'tabindex' in node.attributes:
+        return True
+    else:
+        return node.tag in ['input', 'button', 'a']
+
+
+def get_tabindex(node):
+    tabindex = int(node.attributes.get('tabindex', '9999999'))
+    return 9999999 if tabindex == 0 else tabindex
+
+
+def paint_outline(node, cmds, rect, zoom):
+    outline = parse_outline(node.style.get('outline'))
+    if not outline:
+        return
+    thickness, color = outline
+    cmds.append(DrawOutline(rect, color, dpx(thickness, zoom)))

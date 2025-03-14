@@ -1,5 +1,6 @@
 from .tag_selector import TagSelector
 from .descendant_selector import DescendantSelector
+from .pseudoclass_selector import PseudoclassSelector
 
 
 INHERITED_PROPERTIES = {
@@ -79,26 +80,40 @@ class CSSParser:
         return None
 
     def selector(self):
-        out = TagSelector(self.word().casefold())
+        out = self.simple_selector()
         self.whitespace()
         while self.i < len(self.s) and self.s[self.i] != '{':
-            tag = self.word()
-            descendant = TagSelector(tag.casefold())
+            descendant = self.simple_selector()
             out = DescendantSelector(out, descendant)
             self.whitespace()
         return out
 
     def parse(self):
         rules = []
+        media = None
+        self.whitespace()
         while self.i < len(self.s):
             try:
-                self.whitespace()
-                selector = self.selector()
-                self.literal('{')
-                self.whitespace()
-                body = self.body()
-                self.literal('}')
-                rules.append((selector, body))
+                if self.s[self.i] == '@' and not media:
+                    prop, val = self.media_query()
+                    if prop == 'prefers-color-scheme' and \
+                            val in ['dark', 'light']:
+                        media = val
+                    self.whitespace()
+                    self.literal('{')
+                    self.whitespace()
+                elif self.s[self.i] == '}' and media:
+                    self.literal('}')
+                    media = None
+                    self.whitespace()
+                else:
+                    selector = self.selector()
+                    self.literal('{')
+                    self.whitespace()
+                    body = self.body()
+                    self.literal('}')
+                    self.whitespace()
+                    rules.append((media, selector, body))
             except Exception:
                 why = self.ignore_until(['}'])
                 if why == '}':
@@ -113,6 +128,26 @@ class CSSParser:
         while self.i < len(self.s) and self.s[self.i] not in chars:
             self.i += 1
         return self.s[start:self.i]
+
+    def media_query(self):
+        self.literal('@')
+        assert self.word() == 'media'
+
+        self.whitespace()
+        self.literal('(')
+        self.whitespace()
+        prop, val = self.pair([')'])
+        self.whitespace()
+        self.literal(')')
+        return prop, val
+
+    def simple_selector(self):
+        out = TagSelector(self.word().casefold())
+        if self.i < len(self.s) and self.s[self.i] == ':':
+            self.literal(':')
+            pseudoclass = self.word().casefold()
+            out = PseudoclassSelector(pseudoclass, out)
+        return out
 
 
 DEFAULT_STYLE_SHEET = CSSParser(open('browser.css').read()).parse()

@@ -8,6 +8,7 @@ WebSurfer is a simple browser built with Python, and following the blessing of [
 ```sh
 python3 main.py http://example.org/
 ```
+
 ### Features
 - http/1 support
 - https support
@@ -16,6 +17,9 @@ python3 main.py http://example.org/
 - Basic HTML and CSS parser
 - Barebones JS interpreter
 - Barebones cookies and security features
+- Multithread support
+- Gpu acceleration
+- Basic accessibility features
 
 #### Todo when the blessings are over:
 - Update http support from 1.0 to 3.0
@@ -29,3 +33,4 @@ python3 main.py http://example.org/
 - Expand JS interpreter
 - Expand cookie handling
 - Expand security features
+- Expand accessibility features
