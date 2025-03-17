@@ -1,4 +1,5 @@
 import skia
+from .textlayout import TextLayout
 from .functions import paint_outline, parse_outline
 
 
@@ -30,18 +31,17 @@ class LineLayout:
             self.height = 0
             return
 
-        max_ascent = max([-word.font.getMetrics().fAscent
-                          for word in self.children])
+        max_ascent = max([-child.ascent for child in self.children])
+        baseline = self.y + max_ascent
 
-        baseline = self.y + 1.25 * max_ascent
-
-        for word in self.children:
-            word.y = baseline + word.font.getMetrics().fAscent
-
-        max_descent = max([word.font.getMetrics().fDescent
-                           for word in self.children])
-
-        self.height = 1.25 * (max_ascent + max_descent)
+        for child in self.children:
+            if isinstance(child, TextLayout):
+                child.y = baseline + child.ascent / 1.25
+            else:
+                child.y = baseline + child.ascent
+        max_descent = max([child.descent
+                           for child in self.children])
+        self.height = max_ascent + max_descent
 
     def paint(self):
         return []

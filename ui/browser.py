@@ -13,7 +13,6 @@ from .functions import tree_to_list, add_parent_pointers, local_to_absolute
 from .compositedlayer import CompositedLayer
 from .blend import Blend
 from .drawcompositedlayer import DrawCompositedLayer
-from .drawoutline import DrawOutline
 
 
 class Browser:
@@ -96,15 +95,22 @@ class Browser:
         self.dark_mode = False
         self.tab_focus = None
         self.last_tab_focus = None
+        self.root_frame_focused = False
 
     def handle_down(self):
         self.lock.acquire(blocking=True)
-        if not self.active_tab_height:
+        if self.root_frame_focused:
+            if not self.active_tab_height:
+                self.lock.release()
+                return
+            self.active_tab_scroll = \
+                self.clamp_scroll(self.active_tab_scroll + SCROLL_STEP)
+            self.set_needs_draw()
+            self.needs_animation_frame = True
             self.lock.release()
             return
-        self.active_tab_scroll = self.clamp_scroll(
-                self.active_tab_scroll + SCROLL_STEP)
-        self.set_needs_draw()
+        task = Task(self.active_tab.scrolldown)
+        self.active_tab.task_runner.schedule_task(task)
         self.needs_animation_frame = True
         self.lock.release()
 
@@ -164,7 +170,7 @@ class Browser:
         self.active_tab = tab
         task = Task(self.active_tab.set_dark_mode, self.dark_mode)
         self.active_tab.task_runner.schedule_task(task)
-        task = Task(self.active_tab.set_needs_paint)
+        task = Task(self.active_tab.set_needs_render_all_frames)
         self.active_tab.task_runner.schedule_task(task)
 
         self.clear_data()
@@ -294,19 +300,19 @@ class Browser:
             if data.scroll is not None:
                 self.active_tab_scroll = data.scroll
 
+            self.root_frame_focused = data.root_frame_focused
             self.active_tab_height = data.height
+
             if data.display_list:
                 self.active_tab_display_list = data.display_list
+
             self.animation_timer = None
-
             self.composited_updates = data.composited_updates
-
             if self.composited_updates is None:
                 self.composited_updates = {}
                 self.set_needs_composite()
             else:
                 self.set_needs_draw()
-
         self.lock.release()
 
     def clamp_scroll(self, scroll):

@@ -70,23 +70,20 @@ class URL:
 
         s.send(request.encode('utf8'))
 
-        response = s.makefile('r', encoding='utf8', newline='\r\n')
+        response = s.makefile('b')
 
-        statusline = response.readline()
+        statusline = response.readline().decode('utf8')
         # gets http version, status and status message
         version, status, message = statusline.split(' ', 2)
 
         response_headers = {}
         while True:
-            line = response.readline()
+            line = response.readline().decode('utf8')
             if line == '\r\n':
                 break
 
             header, value = line.split(':', 1)
             response_headers[header.lower()] = value.strip()
-
-        assert 'transfer-encoding' not in response_headers
-        assert 'content-encoding' not in response_headers
 
         if 'set-cookie' in response_headers:
             cookie = response_headers['set-cookie']
@@ -100,6 +97,9 @@ class URL:
                         value = 'true'
                     params[param.strip().casefold()] = value.casefold()
             COOKIE_JAR[self.host] = (cookie, params)
+
+        assert 'transfer-encoding' not in response_headers
+        assert 'content-encoding' not in response_headers
 
         content = response.read()
         s.close()

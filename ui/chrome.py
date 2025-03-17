@@ -114,7 +114,7 @@ class Chrome:
                 self.address_rect.bottom(),
                 'red', 1))
         else:
-            url = str(self.browser.active_tab.url) if \
+            url = str(self.browser.active_tab_url) if \
                     self.browser.active_tab_url else ''
             cmds.append(DrawText(
                 self.address_rect.left() + self.padding,

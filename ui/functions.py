@@ -6,8 +6,8 @@ from .variables import FONTS
 from .blend import Blend
 from .drawrect import DrawRRect
 from .transform import Transform
-from .functions2 import parse_transform
 from .drawoutline import DrawOutline
+from .functions2 import parse_transform
 from css_parser.functions import parse_outline
 from connection.url import URL
 
@@ -33,20 +33,6 @@ def get_font(size, weight, style):
         FONTS[key] = font
 
     return skia.Font(FONTS[key], size)
-
-
-def paint_tree(layout_object, display_list):
-    cmds = []
-    if layout_object.should_paint():
-        cmds = layout_object.paint()
-
-    for child in layout_object.children:
-        paint_tree(child, cmds)
-
-    if layout_object.should_paint():
-        cmds = layout_object.paint_effects(cmds)
-
-    display_list.extend(cmds)
 
 
 def mainloop(browser):
@@ -191,3 +177,26 @@ def paint_outline(node, cmds, rect, zoom):
         return
     thickness, color = outline
     cmds.append(DrawOutline(rect, color, dpx(thickness, zoom)))
+
+
+def parse_image_rendering(quality):
+    if quality == 'high-quality':
+        return skia.FilterQuality.kHigh_FilterQuality
+    elif quality == 'crisp-edges':
+        return skia.FilterQuality.kLow_FilterQuality
+    else:
+        return skia.FilterQuality.kMedium_FilterQuality
+
+
+def font(style, zoom):
+    weight = style["font-weight"]
+    variant = style["font-style"]
+    size = None
+
+    try:
+        size = float(style["font-size"][:-2]) * 0.75
+    except Exception:
+        size = 16
+    font_size = dpx(size, zoom)
+
+    return get_font(font_size, weight, variant)

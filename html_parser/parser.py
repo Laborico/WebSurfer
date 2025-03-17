@@ -1,5 +1,6 @@
 from .text import Text
 from .element import Element
+from css_parser.attributeparser import AttributeParser
 
 
 class HTMLParser:
@@ -74,20 +75,7 @@ class HTMLParser:
             self.unfinished.append(node)
 
     def get_attributes(self, text):
-        parts = text.split()
-        tag = parts[0].casefold()
-        attributes = {}
-
-        for attrpair in parts[1:]:
-            if '=' in attrpair:
-                key, value = attrpair.split('=', 1)
-
-                if len(value) > 2 and value[0] in ['"', '\'']:
-                    value = value[1:-1]
-                attributes[key.casefold()] = value
-            else:
-                attributes[attrpair.casefold()] = ''
-
+        (tag, attributes) = AttributeParser(text).parse()
         return tag, attributes
 
     def finish(self):
